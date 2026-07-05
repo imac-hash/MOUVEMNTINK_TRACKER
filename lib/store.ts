@@ -59,9 +59,12 @@ export async function getProjects(): Promise<Project[]> {
   const projects = USE_KV
     ? await kvGet<Project[]>("projects", [])
     : readLocal().projects;
-  // Older stored projects predate the billingItems field — normalize so
-  // every read path can rely on it always being an array.
-  return projects.map((p) => ({ ...p, billingItems: p.billingItems || [] }));
+  // Older stored projects predate the billingItems/lineItems fields —
+  // normalize so every read path can rely on them always being arrays.
+  return projects.map((p) => ({
+    ...p,
+    billingItems: (p.billingItems || []).map((b) => ({ ...b, lineItems: b.lineItems || [] })),
+  }));
 }
 
 export async function saveEntities(entities: Entity[]): Promise<void> {
@@ -213,24 +216,6 @@ export async function setLinkVisibility(
   return updateProject(projectId, { links });
 }
 
-export async function addBillingItem(
-  projectId: string,
-  item: Omit<BillingItem, "id" | "createdAt" | "updatedAt" | "visibleToCollaborators">
-) {
-  const project = await getProject(projectId);
-  if (!project) throw new Error("Project not found");
-  const now = Date.now();
-  const billingItem: BillingItem = {
-    ...item,
-    id: nanoid(8),
-    createdAt: now,
-    updatedAt: now,
-    visibleToCollaborators: false,
-  };
-  const billingItems = [...(project.billingItems || []), billingItem];
-  return updateProject(projectId, { billingItems });
-}
-
 export async function setBillingItemVisibility(
   projectId: string,
   billingItemId: string,
@@ -252,27 +237,81 @@ const BILLING_STATUS_RANK: Record<BillingItemStatus, number> = {
   uncollectible: 3,
 };
 
-export async function updateBillingItemStatus(
-  stripeInvoiceId: string,
-  status: BillingItemStatus,
-  hostedInvoiceUrl?: string
-) {
+export interface StripeInvoiceSnapshot {
+  stripeInvoiceId: string;
+  stripeCustomerId: string;
+  projectId: string;
+  description: string;
+  amountCents: number;
+  currency: string;
+  status: BillingItemStatus;
+  invoiceNumber?: string;
+  hostedInvoiceUrl?: string;
+  lineItems: BillingItem["lineItems"];
+  dueDate?: string;
+}
+
+// The one place a Stripe invoice is reconciled into local data — called by
+// the webhook (and by manual sync) for both invoices the app already knows
+// about (status/line-item refresh) and invoices created directly in Stripe's
+// dashboard (first-time creation, matched to a project via the invoice's
+// `project_id` metadata). Stripe is the source of truth for everything here
+// except `visibleToCollaborators`, which is owner-controlled and preserved
+// across syncs.
+export async function upsertBillingItemFromStripe(snapshot: StripeInvoiceSnapshot) {
   const projects = await getProjects();
   const projectIdx = projects.findIndex((p) =>
-    (p.billingItems || []).some((b) => b.stripeInvoiceId === stripeInvoiceId)
+    (p.billingItems || []).some((b) => b.stripeInvoiceId === snapshot.stripeInvoiceId)
   );
-  if (projectIdx === -1) return;
+
+  if (projectIdx === -1) {
+    const targetIdx = projects.findIndex((p) => p.id === snapshot.projectId);
+    if (targetIdx === -1) return;
+    const now = Date.now();
+    const billingItem: BillingItem = {
+      id: nanoid(8),
+      description: snapshot.description,
+      amountCents: snapshot.amountCents,
+      currency: snapshot.currency,
+      status: snapshot.status,
+      stripeCustomerId: snapshot.stripeCustomerId,
+      stripeInvoiceId: snapshot.stripeInvoiceId,
+      invoiceNumber: snapshot.invoiceNumber,
+      hostedInvoiceUrl: snapshot.hostedInvoiceUrl,
+      lineItems: snapshot.lineItems,
+      dueDate: snapshot.dueDate,
+      createdAt: now,
+      updatedAt: now,
+      visibleToCollaborators: false,
+    };
+    const project = projects[targetIdx];
+    projects[targetIdx] = {
+      ...project,
+      billingItems: [...(project.billingItems || []), billingItem],
+      updatedAt: now,
+    };
+    await saveProjects(projects);
+    return;
+  }
 
   const project = projects[projectIdx];
   const billingItems = project.billingItems.map((b) => {
-    if (b.stripeInvoiceId !== stripeInvoiceId) return b;
+    if (b.stripeInvoiceId !== snapshot.stripeInvoiceId) return b;
     const isTerminal = b.status === "void" || b.status === "uncollectible";
-    if (isTerminal) return b;
-    if (BILLING_STATUS_RANK[status] < BILLING_STATUS_RANK[b.status]) return b;
+    const status =
+      isTerminal || BILLING_STATUS_RANK[snapshot.status] < BILLING_STATUS_RANK[b.status]
+        ? b.status
+        : snapshot.status;
     return {
       ...b,
+      description: snapshot.description,
+      amountCents: snapshot.amountCents,
+      currency: snapshot.currency,
       status,
-      hostedInvoiceUrl: hostedInvoiceUrl ?? b.hostedInvoiceUrl,
+      invoiceNumber: snapshot.invoiceNumber,
+      hostedInvoiceUrl: snapshot.hostedInvoiceUrl ?? b.hostedInvoiceUrl,
+      lineItems: snapshot.lineItems,
+      dueDate: snapshot.dueDate ?? b.dueDate,
       updatedAt: Date.now(),
     };
   });

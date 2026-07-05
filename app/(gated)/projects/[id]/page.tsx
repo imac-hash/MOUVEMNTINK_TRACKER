@@ -16,7 +16,7 @@ import {
   setTaskVisibilityAction,
   setLinkVisibilityAction,
   setTeaserMessageAction,
-  createBillingItemAction,
+  syncBillingFromStripeAction,
   setBillingItemVisibilityAction,
 } from "@/lib/actions";
 
@@ -92,20 +92,42 @@ export default async function ProjectPage({ params }: { params: { id: string } }
           ))}
         </div>
         {shaped.billingItems.length > 0 && (
-          <div className="card p-6 space-y-3">
+          <div className="card p-6 space-y-4">
             <h2 className="label">Billing</h2>
             {shaped.billingItems.map((b) => (
-              <div key={b.id} className="flex items-center justify-between gap-3 border-b border-line pb-3 last:border-0 last:pb-0">
-                <div>
-                  <div className="text-sm text-charcoal">{b.description}</div>
-                  <div className="text-xs text-charcoal/50 font-structural mt-0.5">
-                    {formatAmount(b.amountCents, b.currency)} · {BILLING_STATUS_LABELS[b.status]}
+              <div key={b.id} className="border-b border-line pb-4 last:border-0 last:pb-0 space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm text-charcoal">
+                      {b.description}
+                      {b.invoiceNumber && (
+                        <span className="text-charcoal/40 text-xs"> · #{b.invoiceNumber}</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-charcoal/50 font-structural mt-0.5">
+                      {formatAmount(b.amountCents, b.currency)} · {BILLING_STATUS_LABELS[b.status]}
+                      {b.dueDate && ` · due ${b.dueDate}`}
+                    </div>
                   </div>
+                  {b.hostedInvoiceUrl && (
+                    <a href={b.hostedInvoiceUrl} target="_blank" className="btn-primary text-xs whitespace-nowrap">
+                      View & Pay Invoice
+                    </a>
+                  )}
                 </div>
-                {b.hostedInvoiceUrl && (
-                  <a href={b.hostedInvoiceUrl} target="_blank" className="btn-primary text-xs whitespace-nowrap">
-                    View & Pay Invoice
-                  </a>
+                {b.lineItems.length > 0 && (
+                  <div className="pl-3 border-l-2 border-line space-y-1">
+                    {b.lineItems.map((li, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs text-charcoal/70">
+                        <span>
+                          {li.description}
+                          {li.hours ? ` · ${li.hours}h` : ""}
+                          {li.quantity > 1 ? ` × ${li.quantity}` : ""}
+                        </span>
+                        <span className="font-structural">{formatAmount(li.amountCents, b.currency)}</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             ))}
@@ -311,57 +333,86 @@ export default async function ProjectPage({ params }: { params: { id: string } }
         </div>
 
         {project.gated && (
-          <div className="card p-6 space-y-3">
-            <h2 className="label">Billing</h2>
+          <div className="card p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="label">Billing</h2>
+              <span className="text-xs text-charcoal/50 font-structural">
+                {formatAmount(
+                  project.billingItems.reduce((sum, b) => sum + b.amountCents, 0),
+                  project.billingItems[0]?.currency || "usd"
+                )}{" "}
+                total
+              </span>
+            </div>
             {project.billingItems.length === 0 && (
               <p className="text-charcoal/50 text-sm">No billing items yet.</p>
             )}
             {project.billingItems.map((b) => (
-              <div key={b.id} className="flex items-center gap-3 border-b border-line pb-3 last:border-0 last:pb-0">
-                <div className="flex-1">
-                  <div className="text-sm text-charcoal">{b.description}</div>
-                  <div className="text-xs text-charcoal/50 font-structural mt-0.5">
-                    {formatAmount(b.amountCents, b.currency)} · {BILLING_STATUS_LABELS[b.status]}
-                    {b.hostedInvoiceUrl && (
-                      <>
-                        {" · "}
-                        <a href={b.hostedInvoiceUrl} target="_blank" className="underline hover:text-navy">
-                          View Stripe invoice
-                        </a>
-                      </>
-                    )}
+              <div key={b.id} className="border-b border-line pb-3 last:border-0 last:pb-0 space-y-2">
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <div className="text-sm text-charcoal">
+                      {b.description}
+                      {b.invoiceNumber && (
+                        <span className="text-charcoal/40 text-xs"> · #{b.invoiceNumber}</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-charcoal/50 font-structural mt-0.5">
+                      {formatAmount(b.amountCents, b.currency)} · {BILLING_STATUS_LABELS[b.status]}
+                      {b.dueDate && ` · due ${b.dueDate}`}
+                      {b.hostedInvoiceUrl && (
+                        <>
+                          {" · "}
+                          <a href={b.hostedInvoiceUrl} target="_blank" className="underline hover:text-navy">
+                            View Stripe invoice
+                          </a>
+                        </>
+                      )}
+                    </div>
                   </div>
+                  <form action={setBillingItemVisibilityAction} className="flex items-center gap-1">
+                    <input type="hidden" name="projectId" value={project.id} />
+                    <input type="hidden" name="billingItemId" value={b.id} />
+                    <label className="flex items-center gap-1 text-xs text-charcoal/60">
+                      <input
+                        type="checkbox"
+                        name="visible"
+                        defaultChecked={b.visibleToCollaborators}
+                        className="accent-navy"
+                      />
+                      visible to collaborators
+                    </label>
+                    <button type="submit" className="text-xs underline text-charcoal/60 hover:text-navy">
+                      save
+                    </button>
+                  </form>
                 </div>
-                <form action={setBillingItemVisibilityAction} className="flex items-center gap-1">
-                  <input type="hidden" name="projectId" value={project.id} />
-                  <input type="hidden" name="billingItemId" value={b.id} />
-                  <label className="flex items-center gap-1 text-xs text-charcoal/60">
-                    <input
-                      type="checkbox"
-                      name="visible"
-                      defaultChecked={b.visibleToCollaborators}
-                      className="accent-navy"
-                    />
-                    visible to collaborators
-                  </label>
-                  <button type="submit" className="text-xs underline text-charcoal/60 hover:text-navy">
-                    save
-                  </button>
-                </form>
+                {b.lineItems.length > 0 && (
+                  <div className="pl-3 border-l-2 border-line space-y-1">
+                    {b.lineItems.map((li, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs text-charcoal/70">
+                        <span>
+                          {li.description}
+                          {li.hours ? ` · ${li.hours}h` : ""}
+                          {li.quantity > 1 ? ` × ${li.quantity}` : ""}
+                        </span>
+                        <span className="font-structural">{formatAmount(li.amountCents, b.currency)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
-            <form action={createBillingItemAction} className="space-y-2 pt-2">
+            <form action={syncBillingFromStripeAction} className="pt-2 space-y-2">
               <input type="hidden" name="projectId" value={project.id} />
               <p className="text-xs text-charcoal/50">
-                Creates a real Stripe invoice and customer if one doesn't
-                exist yet — this is not just a task.
+                Create and edit invoices directly in Stripe — tag each one
+                with metadata <code className="font-structural">project_id</code> ={" "}
+                <code className="font-structural">{project.id}</code>. New
+                invoices sync in automatically; use this to pull in ones
+                Stripe hasn't pushed yet.
               </p>
-              <div className="flex gap-2">
-                <input name="description" className="input" placeholder="Description" />
-                <input name="amount" type="number" step="0.01" min="0" className="input w-32" placeholder="Amount ($)" />
-                <input name="dueDate" type="date" className="input" />
-                <button className="btn whitespace-nowrap">Create invoice</button>
-              </div>
+              <button className="btn text-xs whitespace-nowrap">Sync from Stripe</button>
             </form>
           </div>
         )}

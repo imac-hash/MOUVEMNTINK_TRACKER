@@ -1,25 +1,9 @@
 import { revalidatePath } from "next/cache";
 import Stripe from "stripe";
-import { stripeClient } from "@/lib/stripe";
+import { stripeClient, snapshotFromInvoice } from "@/lib/stripe";
 import * as store from "@/lib/store";
-import { BillingItemStatus } from "@/lib/types";
 
 export const runtime = "nodejs";
-
-function mapStripeStatus(invoice: Stripe.Invoice): BillingItemStatus {
-  switch (invoice.status) {
-    case "paid":
-      return "paid";
-    case "void":
-      return "void";
-    case "uncollectible":
-      return "uncollectible";
-    case "open":
-      return "open";
-    default:
-      return "draft";
-  }
-}
 
 export async function POST(req: Request) {
   const rawBody = await req.text();
@@ -38,18 +22,22 @@ export async function POST(req: Request) {
   }
 
   switch (event.type) {
-    case "invoice.paid":
+    case "invoice.created":
+    case "invoice.updated":
     case "invoice.finalized":
+    case "invoice.paid":
     case "invoice.voided":
     case "invoice.marked_uncollectible":
     case "invoice.payment_failed": {
+      // Invoices created directly in Stripe's dashboard arrive here with no
+      // prior local record — this is the only path that creates a
+      // BillingItem, keyed by the invoice's `project_id` metadata.
       const invoice = event.data.object as Stripe.Invoice;
-      await store.updateBillingItemStatus(
-        invoice.id,
-        mapStripeStatus(invoice),
-        invoice.hosted_invoice_url ?? undefined
-      );
-      revalidatePath("/", "layout");
+      const snapshot = snapshotFromInvoice(invoice);
+      if (snapshot) {
+        await store.upsertBillingItemFromStripe(snapshot);
+        revalidatePath("/", "layout");
+      }
       break;
     }
     default:

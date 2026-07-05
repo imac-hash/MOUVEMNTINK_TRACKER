@@ -47,6 +47,13 @@ export interface Link {
 
 export type BillingItemStatus = "draft" | "open" | "paid" | "void" | "uncollectible";
 
+export interface BillingLineItem {
+  description: string;
+  quantity: number;
+  amountCents: number;
+  hours?: number;
+}
+
 export interface BillingItem {
   id: string;
   description: string;
@@ -55,7 +62,9 @@ export interface BillingItem {
   status: BillingItemStatus;
   stripeCustomerId: string;
   stripeInvoiceId: string;
+  invoiceNumber?: string;
   hostedInvoiceUrl?: string;
+  lineItems: BillingLineItem[];
   dueDate?: string;
   createdAt: number;
   updatedAt: number;

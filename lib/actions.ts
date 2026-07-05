@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import * as store from "./store";
-import { stripeClient } from "./stripe";
-import { BillingItemStatus, EntityColor, ProjectStatus, ProjectType, TriageBucket } from "./types";
+import { stripeClient, snapshotFromInvoice } from "./stripe";
+import { EntityColor, ProjectStatus, ProjectType, TriageBucket } from "./types";
 
 async function requireOwner() {
   const session = await auth();
@@ -181,61 +181,29 @@ export async function setLinkVisibilityAction(formData: FormData) {
   revalidatePath(`/projects/${projectId}`);
 }
 
-export async function createBillingItemAction(formData: FormData) {
+// Stripe is the source of truth for invoices — create/edit them in the
+// Stripe dashboard (tag the invoice with metadata `project_id` = this
+// project's id) and the webhook syncs them in automatically. This action is
+// a manual pull for the case a webhook delivery was missed, or for invoices
+// that existed before the webhook was registered — it re-fetches every
+// invoice tagged with this project and reconciles it the same way the
+// webhook would.
+export async function syncBillingFromStripeAction(formData: FormData) {
   await requireOwner();
   const projectId = String(formData.get("projectId"));
   const project = await store.getProject(projectId);
   if (!project) throw new Error("Project not found.");
-  if (!project.gated) {
-    throw new Error("Gate this project before adding billing items.");
-  }
-
-  const description = String(formData.get("description") || "").trim();
-  const amountDollars = Number(formData.get("amount") || 0);
-  const dueDate = String(formData.get("dueDate") || "").trim() || undefined;
-  if (!description || !(amountDollars > 0)) return;
-  const amountCents = Math.round(amountDollars * 100);
-
-  const collaborators = await store.getCollaborators();
-  const recipient = collaborators.find((c) =>
-    c.allowedEntityIds.includes(project.entityId)
-  );
-  if (!recipient) {
-    throw new Error("No collaborator is scoped to this project's entity yet.");
-  }
 
   const stripe = stripeClient();
-
-  const existing = await stripe.customers.list({ email: recipient.email, limit: 1 });
-  const customer =
-    existing.data[0] ?? (await stripe.customers.create({ email: recipient.email }));
-
-  await stripe.invoiceItems.create({
-    customer: customer.id,
-    amount: amountCents,
-    currency: "usd",
-    description,
+  const invoices = await stripe.invoices.search({
+    query: `metadata['project_id']:'${projectId}'`,
+    limit: 100,
   });
 
-  const invoice = await stripe.invoices.create({
-    customer: customer.id,
-    collection_method: "send_invoice",
-    days_until_due: 14,
-    auto_advance: true,
-  });
-
-  const finalized = await stripe.invoices.finalizeInvoice(invoice.id);
-
-  await store.addBillingItem(projectId, {
-    description,
-    amountCents,
-    currency: "usd",
-    status: (finalized.status as BillingItemStatus) || "draft",
-    stripeCustomerId: customer.id,
-    stripeInvoiceId: finalized.id,
-    hostedInvoiceUrl: finalized.hosted_invoice_url ?? undefined,
-    dueDate,
-  });
+  for (const invoice of invoices.data) {
+    const snapshot = snapshotFromInvoice(invoice);
+    if (snapshot) await store.upsertBillingItemFromStripe(snapshot);
+  }
 
   revalidatePath(`/projects/${projectId}`);
 }

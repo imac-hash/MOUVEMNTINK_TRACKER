@@ -65,20 +65,42 @@ export default async function SharePage({ params }: { params: { token: string } 
       )}
 
       {shaped.billingItems.length > 0 && (
-        <div className="card p-5 space-y-2">
+        <div className="card p-5 space-y-3">
           <h2 className="label mb-1">Billing</h2>
           {shaped.billingItems.map((b) => (
-            <div key={b.id} className="flex items-center justify-between gap-3 text-sm">
-              <div>
-                <div>{b.description}</div>
-                <div className="text-xs text-charcoal/50 font-structural mt-0.5">
-                  {formatAmount(b.amountCents, b.currency)} · {BILLING_STATUS_LABELS[b.status]}
+            <div key={b.id} className="border-b border-line pb-3 last:border-0 last:pb-0 space-y-2">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <div>
+                  <div>
+                    {b.description}
+                    {b.invoiceNumber && (
+                      <span className="text-charcoal/40 text-xs"> · #{b.invoiceNumber}</span>
+                    )}
+                  </div>
+                  <div className="text-xs text-charcoal/50 font-structural mt-0.5">
+                    {formatAmount(b.amountCents, b.currency)} · {BILLING_STATUS_LABELS[b.status]}
+                    {b.dueDate && ` · due ${b.dueDate}`}
+                  </div>
                 </div>
+                {b.hostedInvoiceUrl && (
+                  <a href={b.hostedInvoiceUrl} target="_blank" className="btn-primary text-xs whitespace-nowrap">
+                    View & Pay Invoice
+                  </a>
+                )}
               </div>
-              {b.hostedInvoiceUrl && (
-                <a href={b.hostedInvoiceUrl} target="_blank" className="btn-primary text-xs whitespace-nowrap">
-                  View & Pay Invoice
-                </a>
+              {b.lineItems.length > 0 && (
+                <div className="pl-3 border-l-2 border-line space-y-1">
+                  {b.lineItems.map((li, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs text-charcoal/70">
+                      <span>
+                        {li.description}
+                        {li.hours ? ` · ${li.hours}h` : ""}
+                        {li.quantity > 1 ? ` × ${li.quantity}` : ""}
+                      </span>
+                      <span className="font-structural">{formatAmount(li.amountCents, b.currency)}</span>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           ))}
