@@ -21,6 +21,9 @@ export type ProjectType =
   | "display_ad"
   | "email_template"
   | "production"
+  | "events"
+  | "copy"
+  | "billing"
   | "other";
 
 export type TriageBucket = "now" | "next" | "someday" | "waiting";
@@ -64,6 +67,9 @@ export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
   display_ad: "Display ad",
   email_template: "Email template",
   production: "Production",
+  events: "Events",
+  copy: "Copy",
+  billing: "Billing",
   other: "Other",
 };
 
