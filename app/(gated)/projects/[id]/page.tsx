@@ -173,16 +173,30 @@ export default async function ProjectPage({ params }: { params: { id: string } }
             <input type="hidden" name="id" value={project.id} />
             <h2 className="label">Teaser (optional)</h2>
             <p className="text-xs text-charcoal/50">
-              When set, collaborators see the project title and this message
-              instead of nothing at all — for surprises you want to hint at
-              without revealing details. Leave blank for fully invisible.
+              When set, collaborators see a teaser instead of nothing at all —
+              for surprises you want to hint at without revealing details.
+              Leave both blank for fully invisible. The real project title
+              is never shown here — set a vague display title below, since
+              the real one can give away what's coming.
             </p>
-            <input
-              name="teaserMessage"
-              defaultValue={project.teaserMessage}
-              className="input"
-              placeholder="Something big is coming…"
-            />
+            <div>
+              <label className="label block mb-1">Teaser title</label>
+              <input
+                name="teaserTitle"
+                defaultValue={project.teaserTitle}
+                className="input"
+                placeholder="Something's coming"
+              />
+            </div>
+            <div>
+              <label className="label block mb-1">Teaser message</label>
+              <input
+                name="teaserMessage"
+                defaultValue={project.teaserMessage}
+                className="input"
+                placeholder="Something big is coming…"
+              />
+            </div>
             <button type="submit" className="btn text-xs">Save</button>
           </form>
         )}

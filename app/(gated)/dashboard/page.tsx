@@ -63,18 +63,6 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      {teasers.length > 0 && (
-        <div className="mb-6 space-y-2">
-          {teasers.map((t) => (
-            <div key={t.id} className="card p-4 border-navy/30 bg-navy/5">
-              <div className="text-[10px] uppercase tracking-wider font-structural text-navy mb-1">
-                {t.title}
-              </div>
-              <p className="text-sm text-charcoal italic">{t.teaserMessage}</p>
-            </div>
-          ))}
-        </div>
-      )}
       <div className="flex items-baseline justify-between mb-6">
         <h1 className="hero text-2xl">Triage</h1>
         <span className="label">{live.length} active across {entities.length} entities</span>
@@ -82,14 +70,17 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {BUCKETS.map((bucket) => {
           const items = live.filter((p) => p.triage === bucket);
+          const bucketTeasers = teasers.filter((t) => t.triage === bucket);
           return (
             <div key={bucket} className="space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className={`label ${BUCKET_ACCENT[bucket]}`}>{TRIAGE_LABELS[bucket]}</h2>
-                <span className="text-xs text-charcoal/50 font-structural">{items.length}</span>
+                <span className="text-xs text-charcoal/50 font-structural">
+                  {items.length + bucketTeasers.length}
+                </span>
               </div>
               <div className="space-y-2 min-h-[4rem]">
-                {items.length === 0 && (
+                {items.length === 0 && bucketTeasers.length === 0 && (
                   <p className="text-xs text-charcoal/40 font-structural italic px-1">empty</p>
                 )}
                 {items.map((p) => {
@@ -111,24 +102,34 @@ export default async function DashboardPage() {
                           {p.dueDate ? ` · due ${p.dueDate}` : ""}
                         </div>
                       </Link>
-                      <div className="flex gap-1 pt-1 border-t border-line">
-                        {BUCKETS.filter((b) => b !== bucket).map((b) => (
-                          <form action={setTriageAction} key={b}>
-                            <input type="hidden" name="id" value={p.id} />
-                            <input type="hidden" name="triage" value={b} />
-                            <button
-                              type="submit"
-                              className="text-[10px] font-structural text-charcoal/50 hover:text-navy px-1"
-                              title={`Move to ${TRIAGE_LABELS[b]}`}
-                            >
-                              → {TRIAGE_LABELS[b].split(" ")[0]}
-                            </button>
-                          </form>
-                        ))}
-                      </div>
+                      {isOwner && (
+                        <div className="flex gap-1 pt-1 border-t border-line">
+                          {BUCKETS.filter((b) => b !== bucket).map((b) => (
+                            <form action={setTriageAction} key={b}>
+                              <input type="hidden" name="id" value={p.id} />
+                              <input type="hidden" name="triage" value={b} />
+                              <button
+                                type="submit"
+                                className="text-[10px] font-structural text-charcoal/50 hover:text-navy px-1"
+                                title={`Move to ${TRIAGE_LABELS[b]}`}
+                              >
+                                → {TRIAGE_LABELS[b].split(" ")[0]}
+                              </button>
+                            </form>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
+                {bucketTeasers.map((t) => (
+                  <div key={t.id} className="card p-3 space-y-1 border-navy/30 bg-navy/5">
+                    <div className="text-[10px] uppercase tracking-wider font-structural text-navy">
+                      {t.title}
+                    </div>
+                    <p className="text-xs text-charcoal italic">{t.teaserMessage}</p>
+                  </div>
+                ))}
               </div>
             </div>
           );

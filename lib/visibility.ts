@@ -1,4 +1,4 @@
-import { Project } from "./types";
+import { Project, TriageBucket } from "./types";
 
 export interface ProjectTeaser {
   kind: "teaser";
@@ -6,6 +6,7 @@ export interface ProjectTeaser {
   entityId: string;
   title: string;
   teaserMessage: string;
+  triage: TriageBucket;
 }
 
 export type ShapedProject = Project | ProjectTeaser;
@@ -30,8 +31,9 @@ export function shapeProjectForViewer(
         kind: "teaser",
         id: project.id,
         entityId: project.entityId,
-        title: project.title,
+        title: project.teaserTitle || "Something's coming",
         teaserMessage: project.teaserMessage,
+        triage: project.triage,
       };
     }
     return null;

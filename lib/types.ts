@@ -62,6 +62,7 @@ export interface Project {
   shareToken?: string;
   gated?: boolean;
   teaserMessage?: string;
+  teaserTitle?: string;
   createdAt: number;
   updatedAt: number;
 }

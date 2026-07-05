@@ -97,6 +97,7 @@ export async function updateProjectAction(formData: FormData) {
 }
 
 export async function setTriageAction(formData: FormData) {
+  await requireOwner();
   const id = String(formData.get("id"));
   await requireProjectAccess(id);
   const triage = String(formData.get("triage")) as TriageBucket;
@@ -105,6 +106,7 @@ export async function setTriageAction(formData: FormData) {
 }
 
 export async function deleteProjectAction(formData: FormData) {
+  await requireOwner();
   const id = String(formData.get("id"));
   const project = await requireProjectAccess(id);
   await store.deleteProject(id);
@@ -152,10 +154,12 @@ export async function setProjectGatedAction(formData: FormData) {
 export async function setTeaserMessageAction(formData: FormData) {
   await requireOwner();
   const id = String(formData.get("id"));
+  const teaserTitle = String(formData.get("teaserTitle") || "").trim();
   const teaserMessage = String(formData.get("teaserMessage") || "").trim();
-  await store.setTeaserMessage(id, teaserMessage);
+  await store.setTeaser(id, teaserTitle, teaserMessage);
   revalidatePath(`/projects/${id}`);
   revalidatePath("/dashboard");
+  revalidatePath("/entities");
 }
 
 export async function setTaskVisibilityAction(formData: FormData) {
