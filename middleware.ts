@@ -8,8 +8,11 @@ export default NextAuth(authConfig).auth;
 
 export const config = {
   // Everything requires a session except the auth API routes, the login /
-  // verify-request pages, static assets, and public read-only share links.
+  // verify-request pages, static assets, public read-only share links, and
+  // the Stripe webhook — Stripe's servers send an unauthenticated POST
+  // verified by signature instead of a session cookie, so it must bypass
+  // the login gate entirely or Stripe sees a failed delivery and retries.
   matcher: [
-    "/((?!api/auth|login|verify-request|share|_next/static|_next/image|favicon).*)",
+    "/((?!api/auth|api/stripe/webhook|login|verify-request|share|_next/static|_next/image|favicon).*)",
   ],
 };

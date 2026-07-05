@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid";
-import { Entity, Link, Project, Task } from "./types";
+import { BillingItem, BillingItemStatus, Entity, Link, Project, Task } from "./types";
 import fs from "fs";
 import path from "path";
 
@@ -90,8 +90,8 @@ export async function deleteEntity(id: string) {
 }
 
 export async function createProject(
-  input: Omit<Project, "id" | "createdAt" | "updatedAt" | "tasks" | "tags" | "links" | "collaborators"> &
-    Partial<Pick<Project, "tasks" | "tags" | "links" | "collaborators">>
+  input: Omit<Project, "id" | "createdAt" | "updatedAt" | "tasks" | "tags" | "links" | "billingItems" | "collaborators"> &
+    Partial<Pick<Project, "tasks" | "tags" | "links" | "billingItems" | "collaborators">>
 ) {
   const projects = await getProjects();
   const now = Date.now();
@@ -99,6 +99,7 @@ export async function createProject(
     tasks: [],
     tags: [],
     links: [],
+    billingItems: [],
     collaborators: [],
     ...input,
     id: nanoid(8),
@@ -206,6 +207,74 @@ export async function setLinkVisibility(
     l.id === linkId ? { ...l, visibleToCollaborators: visible } : l
   );
   return updateProject(projectId, { links });
+}
+
+export async function addBillingItem(
+  projectId: string,
+  item: Omit<BillingItem, "id" | "createdAt" | "updatedAt" | "visibleToCollaborators">
+) {
+  const project = await getProject(projectId);
+  if (!project) throw new Error("Project not found");
+  const now = Date.now();
+  const billingItem: BillingItem = {
+    ...item,
+    id: nanoid(8),
+    createdAt: now,
+    updatedAt: now,
+    visibleToCollaborators: false,
+  };
+  const billingItems = [...(project.billingItems || []), billingItem];
+  return updateProject(projectId, { billingItems });
+}
+
+export async function setBillingItemVisibility(
+  projectId: string,
+  billingItemId: string,
+  visible: boolean
+) {
+  const project = await getProject(projectId);
+  if (!project) throw new Error("Project not found");
+  const billingItems = (project.billingItems || []).map((b: BillingItem) =>
+    b.id === billingItemId ? { ...b, visibleToCollaborators: visible } : b
+  );
+  return updateProject(projectId, { billingItems });
+}
+
+const BILLING_STATUS_RANK: Record<BillingItemStatus, number> = {
+  draft: 0,
+  open: 1,
+  paid: 2,
+  void: 3,
+  uncollectible: 3,
+};
+
+export async function updateBillingItemStatus(
+  stripeInvoiceId: string,
+  status: BillingItemStatus,
+  hostedInvoiceUrl?: string
+) {
+  const projects = await getProjects();
+  const projectIdx = projects.findIndex((p) =>
+    (p.billingItems || []).some((b) => b.stripeInvoiceId === stripeInvoiceId)
+  );
+  if (projectIdx === -1) return;
+
+  const project = projects[projectIdx];
+  const billingItems = project.billingItems.map((b) => {
+    if (b.stripeInvoiceId !== stripeInvoiceId) return b;
+    const isTerminal = b.status === "void" || b.status === "uncollectible";
+    if (isTerminal) return b;
+    if (BILLING_STATUS_RANK[status] < BILLING_STATUS_RANK[b.status]) return b;
+    return {
+      ...b,
+      status,
+      hostedInvoiceUrl: hostedInvoiceUrl ?? b.hostedInvoiceUrl,
+      updatedAt: Date.now(),
+    };
+  });
+
+  projects[projectIdx] = { ...project, billingItems, updatedAt: Date.now() };
+  await saveProjects(projects);
 }
 
 // --- Collaborators (access control) ---

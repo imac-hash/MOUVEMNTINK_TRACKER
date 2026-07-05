@@ -45,6 +45,31 @@ export interface Link {
   visibleToCollaborators?: boolean;
 }
 
+export type BillingItemStatus = "draft" | "open" | "paid" | "void" | "uncollectible";
+
+export interface BillingItem {
+  id: string;
+  description: string;
+  amountCents: number;
+  currency: string;
+  status: BillingItemStatus;
+  stripeCustomerId: string;
+  stripeInvoiceId: string;
+  hostedInvoiceUrl?: string;
+  dueDate?: string;
+  createdAt: number;
+  updatedAt: number;
+  visibleToCollaborators?: boolean;
+}
+
+export const BILLING_STATUS_LABELS: Record<BillingItemStatus, string> = {
+  draft: "Draft",
+  open: "Open",
+  paid: "Paid",
+  void: "Void",
+  uncollectible: "Uncollectible",
+};
+
 export interface Project {
   id: string;
   entityId: string;
@@ -57,6 +82,7 @@ export interface Project {
   tags: string[];
   links: Link[];
   tasks: Task[];
+  billingItems: BillingItem[];
   notes?: string;
   collaborators: string[];
   shareToken?: string;
