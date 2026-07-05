@@ -2,7 +2,7 @@ import NextLink from "next/link";
 import { notFound } from "next/navigation";
 import * as store from "@/lib/store";
 import { auth } from "@/auth";
-import { shapeProjectForViewer } from "@/lib/visibility";
+import { isTeaser, shapeProjectForViewer } from "@/lib/visibility";
 import { PROJECT_TYPE_LABELS, TRIAGE_LABELS } from "@/lib/types";
 import {
   updateProjectAction,
@@ -15,6 +15,7 @@ import {
   setProjectGatedAction,
   setTaskVisibilityAction,
   setLinkVisibilityAction,
+  setTeaserMessageAction,
 } from "@/lib/actions";
 
 export default async function ProjectPage({ params }: { params: { id: string } }) {
@@ -33,6 +34,21 @@ export default async function ProjectPage({ params }: { params: { id: string } }
   const entity = entities.find((e) => e.id === project.entityId);
 
   if (!isOwner) {
+    if (isTeaser(shaped)) {
+      return (
+        <div className="max-w-2xl space-y-6">
+          <div>
+            <NextLink href={entity ? `/entities/${entity.id}` : "/entities"} className="label hover:text-navy">
+              ← {entity?.name || "entities"}
+            </NextLink>
+          </div>
+          <div className="card p-6 space-y-2 border-navy/30 bg-navy/5">
+            <h1 className="hero text-2xl">{shaped.title}</h1>
+            <p className="text-sm text-charcoal italic">{shaped.teaserMessage}</p>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="max-w-2xl space-y-6">
         <div>
@@ -151,6 +167,25 @@ export default async function ProjectPage({ params }: { params: { id: string } }
           </label>
           <button type="submit" className="btn text-xs">Save</button>
         </form>
+
+        {project.gated && (
+          <form action={setTeaserMessageAction} className="card p-6 space-y-3">
+            <input type="hidden" name="id" value={project.id} />
+            <h2 className="label">Teaser (optional)</h2>
+            <p className="text-xs text-charcoal/50">
+              When set, collaborators see the project title and this message
+              instead of nothing at all — for surprises you want to hint at
+              without revealing details. Leave blank for fully invisible.
+            </p>
+            <input
+              name="teaserMessage"
+              defaultValue={project.teaserMessage}
+              className="input"
+              placeholder="Something big is coming…"
+            />
+            <button type="submit" className="btn text-xs">Save</button>
+          </form>
+        )}
 
         <div className="card p-6 space-y-3">
           <h2 className="label">Tasks</h2>

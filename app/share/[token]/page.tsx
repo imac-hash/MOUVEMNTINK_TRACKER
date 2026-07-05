@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import * as store from "@/lib/store";
-import { shapeProjectForViewer } from "@/lib/visibility";
+import { isTeaser, shapeProjectForViewer } from "@/lib/visibility";
 import { PROJECT_TYPE_LABELS } from "@/lib/types";
 
 export default async function SharePage({ params }: { params: { token: string } }) {
@@ -9,6 +9,20 @@ export default async function SharePage({ params }: { params: { token: string } 
 
   const shaped = shapeProjectForViewer(project, false);
   if (!shaped) notFound();
+
+  if (isTeaser(shaped)) {
+    return (
+      <div className="max-w-2xl mx-auto px-6 py-12 space-y-6">
+        <div className="card p-6 space-y-2 border-navy/30 bg-navy/5">
+          <h1 className="hero text-3xl">{shaped.title}</h1>
+          <p className="text-charcoal italic">{shaped.teaserMessage}</p>
+        </div>
+        <p className="text-xs text-charcoal/40 italic font-structural pt-4">
+          Shared read-only view — MouvementInk
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-12 space-y-6">

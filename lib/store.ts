@@ -171,6 +171,10 @@ export async function setProjectGated(projectId: string, gated: boolean) {
   return updateProject(projectId, { gated });
 }
 
+export async function setTeaserMessage(projectId: string, teaserMessage: string) {
+  return updateProject(projectId, { teaserMessage: teaserMessage || undefined });
+}
+
 export async function setTaskVisibility(
   projectId: string,
   taskId: string,

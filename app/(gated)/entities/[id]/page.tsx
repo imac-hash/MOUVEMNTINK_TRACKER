@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import * as store from "@/lib/store";
 import { auth } from "@/auth";
-import { shapeProjectForViewer } from "@/lib/visibility";
-import { ENTITY_COLOR_HEX, PROJECT_TYPE_LABELS, TRIAGE_LABELS, Project } from "@/lib/types";
+import { isTeaser, shapeProjectForViewer } from "@/lib/visibility";
+import { ENTITY_COLOR_HEX, PROJECT_TYPE_LABELS, TRIAGE_LABELS } from "@/lib/types";
 import { deleteEntityAction } from "@/lib/actions";
 
 export default async function EntityPage({ params }: { params: { id: string } }) {
@@ -22,8 +22,12 @@ export default async function EntityPage({ params }: { params: { id: string } })
   const entityProjects = projects
     .filter((p) => p.entityId === entity.id)
     .map((p) => (isOwner ? p : shapeProjectForViewer(p, false)))
-    .filter((p): p is Project => p !== null)
-    .sort((a, b) => b.updatedAt - a.updatedAt);
+    .filter((p) => p !== null)
+    .sort((a, b) => {
+      const aTime = isTeaser(a) ? 0 : a.updatedAt;
+      const bTime = isTeaser(b) ? 0 : b.updatedAt;
+      return bTime - aTime;
+    });
 
   return (
     <div>
@@ -58,22 +62,31 @@ export default async function EntityPage({ params }: { params: { id: string } })
         {entityProjects.length === 0 && (
           <p className="text-charcoal/60 text-sm">No projects yet under {entity.name}.</p>
         )}
-        {entityProjects.map((p) => (
-          <Link
-            key={p.id}
-            href={`/projects/${p.id}`}
-            className="card p-4 flex items-center justify-between hover:border-navy/50 transition-colors"
-          >
-            <div>
-              <div className="text-charcoal">{p.title}</div>
-              <div className="text-xs text-charcoal/50 font-structural mt-0.5">
-                {PROJECT_TYPE_LABELS[p.type]} · {p.status}
-                {p.dueDate ? ` · due ${p.dueDate}` : ""}
+        {entityProjects.map((p) =>
+          isTeaser(p) ? (
+            <div key={p.id} className="card p-4 border-navy/30 bg-navy/5">
+              <div className="text-[10px] uppercase tracking-wider font-structural text-navy mb-1">
+                {p.title}
               </div>
+              <p className="text-sm text-charcoal italic">{p.teaserMessage}</p>
             </div>
-            <span className="text-xs font-structural text-navy">{TRIAGE_LABELS[p.triage]}</span>
-          </Link>
-        ))}
+          ) : (
+            <Link
+              key={p.id}
+              href={`/projects/${p.id}`}
+              className="card p-4 flex items-center justify-between hover:border-navy/50 transition-colors"
+            >
+              <div>
+                <div className="text-charcoal">{p.title}</div>
+                <div className="text-xs text-charcoal/50 font-structural mt-0.5">
+                  {PROJECT_TYPE_LABELS[p.type]} · {p.status}
+                  {p.dueDate ? ` · due ${p.dueDate}` : ""}
+                </div>
+              </div>
+              <span className="text-xs font-structural text-navy">{TRIAGE_LABELS[p.triage]}</span>
+            </Link>
+          )
+        )}
       </div>
     </div>
   );

@@ -149,6 +149,15 @@ export async function setProjectGatedAction(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
+export async function setTeaserMessageAction(formData: FormData) {
+  await requireOwner();
+  const id = String(formData.get("id"));
+  const teaserMessage = String(formData.get("teaserMessage") || "").trim();
+  await store.setTeaserMessage(id, teaserMessage);
+  revalidatePath(`/projects/${id}`);
+  revalidatePath("/dashboard");
+}
+
 export async function setTaskVisibilityAction(formData: FormData) {
   await requireOwner();
   const projectId = String(formData.get("projectId"));

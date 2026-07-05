@@ -1,7 +1,7 @@
 import Link from "next/link";
 import * as store from "@/lib/store";
 import { auth } from "@/auth";
-import { shapeProjectForViewer } from "@/lib/visibility";
+import { isTeaser, shapeProjectForViewer, ProjectTeaser } from "@/lib/visibility";
 import {
   ENTITY_COLOR_HEX,
   PROJECT_TYPE_LABELS,
@@ -35,11 +35,14 @@ export default async function DashboardPage() {
   const entities = allowed === "all" ? allEntities : allEntities.filter((e) => allowed.includes(e.id));
   const entityFiltered =
     allowed === "all" ? allProjects : allProjects.filter((p) => allowed.includes(p.entityId));
-  const projects = isOwner
-    ? entityFiltered
-    : entityFiltered
-        .map((p) => shapeProjectForViewer(p, false))
-        .filter((p): p is Project => p !== null);
+
+  let projects: Project[] = entityFiltered;
+  let teasers: ProjectTeaser[] = [];
+  if (!isOwner) {
+    const shaped = entityFiltered.map((p) => shapeProjectForViewer(p, false)).filter((p) => p !== null);
+    teasers = shaped.filter(isTeaser);
+    projects = shaped.filter((p): p is Project => !isTeaser(p));
+  }
 
   const entityById = Object.fromEntries(entities.map((e) => [e.id, e]));
   const live = projects.filter((p) => p.status !== "done" && p.status !== "archived");
@@ -60,6 +63,18 @@ export default async function DashboardPage() {
 
   return (
     <div>
+      {teasers.length > 0 && (
+        <div className="mb-6 space-y-2">
+          {teasers.map((t) => (
+            <div key={t.id} className="card p-4 border-navy/30 bg-navy/5">
+              <div className="text-[10px] uppercase tracking-wider font-structural text-navy mb-1">
+                {t.title}
+              </div>
+              <p className="text-sm text-charcoal italic">{t.teaserMessage}</p>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="flex items-baseline justify-between mb-6">
         <h1 className="hero text-2xl">Triage</h1>
         <span className="label">{live.length} active across {entities.length} entities</span>

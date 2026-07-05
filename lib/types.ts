@@ -61,6 +61,7 @@ export interface Project {
   collaborators: string[];
   shareToken?: string;
   gated?: boolean;
+  teaserMessage?: string;
   createdAt: number;
   updatedAt: number;
 }
