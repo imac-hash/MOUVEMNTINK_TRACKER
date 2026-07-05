@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid";
-import { Entity, Project, Task } from "./types";
+import { Entity, Link, Project, Task } from "./types";
 import fs from "fs";
 import path from "path";
 
@@ -158,6 +158,43 @@ export async function addTask(projectId: string, title: string) {
   if (!project) throw new Error("Project not found");
   const task: Task = { id: nanoid(6), title, done: false, createdAt: Date.now() };
   return updateProject(projectId, { tasks: [...project.tasks, task] });
+}
+
+export async function addLink(projectId: string, label: string, url: string) {
+  const project = await getProject(projectId);
+  if (!project) throw new Error("Project not found");
+  const link: Link = { id: nanoid(6), label, url };
+  return updateProject(projectId, { links: [...project.links, link] });
+}
+
+export async function setProjectGated(projectId: string, gated: boolean) {
+  return updateProject(projectId, { gated });
+}
+
+export async function setTaskVisibility(
+  projectId: string,
+  taskId: string,
+  visible: boolean
+) {
+  const project = await getProject(projectId);
+  if (!project) throw new Error("Project not found");
+  const tasks = project.tasks.map((t: Task) =>
+    t.id === taskId ? { ...t, visibleToCollaborators: visible } : t
+  );
+  return updateProject(projectId, { tasks });
+}
+
+export async function setLinkVisibility(
+  projectId: string,
+  linkId: string,
+  visible: boolean
+) {
+  const project = await getProject(projectId);
+  if (!project) throw new Error("Project not found");
+  const links = project.links.map((l: Link) =>
+    l.id === linkId ? { ...l, visibleToCollaborators: visible } : l
+  );
+  return updateProject(projectId, { links });
 }
 
 // --- Collaborators (access control) ---

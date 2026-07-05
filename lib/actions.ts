@@ -132,11 +132,38 @@ export async function toggleTaskAction(formData: FormData) {
 
 export async function addLinkAction(formData: FormData) {
   const projectId = String(formData.get("projectId"));
-  const project = await requireProjectAccess(projectId);
+  await requireProjectAccess(projectId);
   const label = String(formData.get("label") || "").trim();
   const url = String(formData.get("url") || "").trim();
   if (!label || !url) return;
-  await store.updateProject(projectId, { links: [...project.links, { label, url }] });
+  await store.addLink(projectId, label, url);
+  revalidatePath(`/projects/${projectId}`);
+}
+
+export async function setProjectGatedAction(formData: FormData) {
+  await requireOwner();
+  const id = String(formData.get("id"));
+  const gated = formData.get("gated") === "on";
+  await store.setProjectGated(id, gated);
+  revalidatePath(`/projects/${id}`);
+  revalidatePath("/dashboard");
+}
+
+export async function setTaskVisibilityAction(formData: FormData) {
+  await requireOwner();
+  const projectId = String(formData.get("projectId"));
+  const taskId = String(formData.get("taskId"));
+  const visible = formData.get("visible") === "on";
+  await store.setTaskVisibility(projectId, taskId, visible);
+  revalidatePath(`/projects/${projectId}`);
+}
+
+export async function setLinkVisibilityAction(formData: FormData) {
+  await requireOwner();
+  const projectId = String(formData.get("projectId"));
+  const linkId = String(formData.get("linkId"));
+  const visible = formData.get("visible") === "on";
+  await store.setLinkVisibility(projectId, linkId, visible);
   revalidatePath(`/projects/${projectId}`);
 }
 

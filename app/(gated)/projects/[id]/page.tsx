@@ -1,7 +1,8 @@
-import Link from "next/link";
+import NextLink from "next/link";
 import { notFound } from "next/navigation";
 import * as store from "@/lib/store";
 import { auth } from "@/auth";
+import { shapeProjectForViewer } from "@/lib/visibility";
 import { PROJECT_TYPE_LABELS, TRIAGE_LABELS } from "@/lib/types";
 import {
   updateProjectAction,
@@ -11,6 +12,9 @@ import {
   addLinkAction,
   generateShareLinkAction,
   revokeShareLinkAction,
+  setProjectGatedAction,
+  setTaskVisibilityAction,
+  setLinkVisibilityAction,
 } from "@/lib/actions";
 
 export default async function ProjectPage({ params }: { params: { id: string } }) {
@@ -18,11 +22,53 @@ export default async function ProjectPage({ params }: { params: { id: string } }
   if (!project) notFound();
 
   const session = await auth();
+  const isOwner = store.isOwnerEmail(session?.user?.email);
   const allowed = await store.getAllowedEntityIds(session?.user?.email);
   if (allowed !== "all" && !allowed.includes(project.entityId)) notFound();
 
+  const shaped = shapeProjectForViewer(project, isOwner);
+  if (!shaped) notFound();
+
   const entities = await store.getEntities();
   const entity = entities.find((e) => e.id === project.entityId);
+
+  if (!isOwner) {
+    return (
+      <div className="max-w-2xl space-y-6">
+        <div>
+          <NextLink href={entity ? `/entities/${entity.id}` : "/entities"} className="label hover:text-navy">
+            ← {entity?.name || "entities"}
+          </NextLink>
+        </div>
+        <div className="card p-6 space-y-2">
+          <h1 className="hero text-2xl">{shaped.title}</h1>
+          {shaped.description && <p className="text-sm text-charcoal/70">{shaped.description}</p>}
+          <p className="label">{PROJECT_TYPE_LABELS[shaped.type]}</p>
+        </div>
+        <div className="card p-6 space-y-3">
+          <h2 className="label">Tasks</h2>
+          {shaped.tasks.length === 0 && <p className="text-charcoal/50 text-sm">No tasks yet.</p>}
+          {shaped.tasks.map((t) => (
+            <div key={t.id} className="flex items-center gap-2">
+              <span className="text-lg leading-none">{t.done ? "☑" : "☐"}</span>
+              <span className={t.done ? "line-through text-charcoal/40 text-sm" : "text-sm text-charcoal"}>
+                {t.title}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="card p-6 space-y-3">
+          <h2 className="label">Links</h2>
+          {shaped.links.length === 0 && <p className="text-charcoal/50 text-sm">No links yet.</p>}
+          {shaped.links.map((l) => (
+            <a key={l.id} href={l.url} target="_blank" className="block text-sm text-charcoal hover:text-navy">
+              {l.label} <span className="text-charcoal/50 text-xs">— {l.url}</span>
+            </a>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   const shareUrl = project.shareToken
     ? `/share/${project.shareToken}`
@@ -32,9 +78,9 @@ export default async function ProjectPage({ params }: { params: { id: string } }
     <div className="grid md:grid-cols-3 gap-8">
       <div className="md:col-span-2 space-y-6">
         <div>
-          <Link href={entity ? `/entities/${entity.id}` : "/entities"} className="label hover:text-navy">
+          <NextLink href={entity ? `/entities/${entity.id}` : "/entities"} className="label hover:text-navy">
             ← {entity?.name || "entities"}
-          </Link>
+          </NextLink>
         </div>
 
         <form action={updateProjectAction} className="card p-6 space-y-4">
@@ -91,22 +137,57 @@ export default async function ProjectPage({ params }: { params: { id: string } }
           <button type="submit" className="btn-primary">Save changes</button>
         </form>
 
+        <form action={setProjectGatedAction} className="card p-6 space-y-3">
+          <input type="hidden" name="id" value={project.id} />
+          <h2 className="label">Access</h2>
+          <label className="flex items-center gap-2 text-sm text-charcoal">
+            <input
+              type="checkbox"
+              name="gated"
+              defaultChecked={project.gated}
+              className="accent-navy"
+            />
+            Gated — hidden from collaborators until released
+          </label>
+          <button type="submit" className="btn text-xs">Save</button>
+        </form>
+
         <div className="card p-6 space-y-3">
           <h2 className="label">Tasks</h2>
           {project.tasks.length === 0 && (
             <p className="text-charcoal/50 text-sm">No tasks yet.</p>
           )}
           {project.tasks.map((t) => (
-            <form action={toggleTaskAction} key={t.id} className="flex items-center gap-2">
-              <input type="hidden" name="projectId" value={project.id} />
-              <input type="hidden" name="taskId" value={t.id} />
-              <button type="submit" className="text-lg leading-none">
-                {t.done ? "☑" : "☐"}
-              </button>
-              <span className={t.done ? "line-through text-charcoal/40 text-sm" : "text-sm text-charcoal"}>
-                {t.title}
-              </span>
-            </form>
+            <div key={t.id} className="flex items-center gap-3">
+              <form action={toggleTaskAction} className="flex items-center gap-2">
+                <input type="hidden" name="projectId" value={project.id} />
+                <input type="hidden" name="taskId" value={t.id} />
+                <button type="submit" className="text-lg leading-none">
+                  {t.done ? "☑" : "☐"}
+                </button>
+                <span className={t.done ? "line-through text-charcoal/40 text-sm" : "text-sm text-charcoal"}>
+                  {t.title}
+                </span>
+              </form>
+              {project.gated && (
+                <form action={setTaskVisibilityAction} className="flex items-center gap-1">
+                  <input type="hidden" name="projectId" value={project.id} />
+                  <input type="hidden" name="taskId" value={t.id} />
+                  <label className="flex items-center gap-1 text-xs text-charcoal/60">
+                    <input
+                      type="checkbox"
+                      name="visible"
+                      defaultChecked={t.visibleToCollaborators}
+                      className="accent-navy"
+                    />
+                    visible to collaborators
+                  </label>
+                  <button type="submit" className="text-xs underline text-charcoal/60 hover:text-navy">
+                    save
+                  </button>
+                </form>
+              )}
+            </div>
           ))}
           <form action={addTaskAction} className="flex gap-2 pt-2">
             <input type="hidden" name="projectId" value={project.id} />
@@ -118,10 +199,30 @@ export default async function ProjectPage({ params }: { params: { id: string } }
         <div className="card p-6 space-y-3">
           <h2 className="label">Links</h2>
           {project.links.length === 0 && <p className="text-charcoal/50 text-sm">No links yet.</p>}
-          {project.links.map((l, i) => (
-            <a key={i} href={l.url} target="_blank" className="block text-sm text-charcoal hover:text-navy">
-              {l.label} <span className="text-charcoal/50 text-xs">— {l.url}</span>
-            </a>
+          {project.links.map((l) => (
+            <div key={l.id} className="flex items-center gap-3">
+              <a href={l.url} target="_blank" className="block text-sm text-charcoal hover:text-navy">
+                {l.label} <span className="text-charcoal/50 text-xs">— {l.url}</span>
+              </a>
+              {project.gated && (
+                <form action={setLinkVisibilityAction} className="flex items-center gap-1">
+                  <input type="hidden" name="projectId" value={project.id} />
+                  <input type="hidden" name="linkId" value={l.id} />
+                  <label className="flex items-center gap-1 text-xs text-charcoal/60">
+                    <input
+                      type="checkbox"
+                      name="visible"
+                      defaultChecked={l.visibleToCollaborators}
+                      className="accent-navy"
+                    />
+                    visible to collaborators
+                  </label>
+                  <button type="submit" className="text-xs underline text-charcoal/60 hover:text-navy">
+                    save
+                  </button>
+                </form>
+              )}
+            </div>
           ))}
           <form action={addLinkAction} className="flex gap-2 pt-2">
             <input type="hidden" name="projectId" value={project.id} />

@@ -35,6 +35,14 @@ export interface Task {
   title: string;
   done: boolean;
   createdAt: number;
+  visibleToCollaborators?: boolean;
+}
+
+export interface Link {
+  id: string;
+  label: string;
+  url: string;
+  visibleToCollaborators?: boolean;
 }
 
 export interface Project {
@@ -47,11 +55,12 @@ export interface Project {
   triage: TriageBucket;
   dueDate?: string;
   tags: string[];
-  links: { label: string; url: string }[];
+  links: Link[];
   tasks: Task[];
   notes?: string;
   collaborators: string[];
   shareToken?: string;
+  gated?: boolean;
   createdAt: number;
   updatedAt: number;
 }

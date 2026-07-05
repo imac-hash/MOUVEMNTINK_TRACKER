@@ -1,25 +1,29 @@
 import { notFound } from "next/navigation";
 import * as store from "@/lib/store";
+import { shapeProjectForViewer } from "@/lib/visibility";
 import { PROJECT_TYPE_LABELS } from "@/lib/types";
 
 export default async function SharePage({ params }: { params: { token: string } }) {
   const project = await store.getProjectByShareToken(params.token);
   if (!project) notFound();
 
+  const shaped = shapeProjectForViewer(project, false);
+  if (!shaped) notFound();
+
   return (
     <div className="max-w-2xl mx-auto px-6 py-12 space-y-6">
       <div>
-        <p className="label mb-1">{PROJECT_TYPE_LABELS[project.type]}</p>
-        <h1 className="hero text-3xl">{project.title}</h1>
-        {project.description && (
-          <p className="text-charcoal/60 mt-2">{project.description}</p>
+        <p className="label mb-1">{PROJECT_TYPE_LABELS[shaped.type]}</p>
+        <h1 className="hero text-3xl">{shaped.title}</h1>
+        {shaped.description && (
+          <p className="text-charcoal/60 mt-2">{shaped.description}</p>
         )}
       </div>
 
-      {project.tasks.length > 0 && (
+      {shaped.tasks.length > 0 && (
         <div className="card p-5 space-y-2">
           <h2 className="label mb-1">Tasks</h2>
-          {project.tasks.map((t) => (
+          {shaped.tasks.map((t) => (
             <div key={t.id} className="flex items-center gap-2 text-sm">
               <span>{t.done ? "☑" : "☐"}</span>
               <span className={t.done ? "line-through text-charcoal/40" : ""}>{t.title}</span>
@@ -28,11 +32,11 @@ export default async function SharePage({ params }: { params: { token: string } 
         </div>
       )}
 
-      {project.links.length > 0 && (
+      {shaped.links.length > 0 && (
         <div className="card p-5 space-y-2">
           <h2 className="label mb-1">Links</h2>
-          {project.links.map((l, i) => (
-            <a key={i} href={l.url} target="_blank" className="block text-sm hover:text-navy">
+          {shaped.links.map((l) => (
+            <a key={l.id} href={l.url} target="_blank" className="block text-sm hover:text-navy">
               {l.label}
             </a>
           ))}

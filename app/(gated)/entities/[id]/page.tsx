@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import * as store from "@/lib/store";
 import { auth } from "@/auth";
-import { ENTITY_COLOR_HEX, PROJECT_TYPE_LABELS, TRIAGE_LABELS } from "@/lib/types";
+import { shapeProjectForViewer } from "@/lib/visibility";
+import { ENTITY_COLOR_HEX, PROJECT_TYPE_LABELS, TRIAGE_LABELS, Project } from "@/lib/types";
 import { deleteEntityAction } from "@/lib/actions";
 
 export default async function EntityPage({ params }: { params: { id: string } }) {
@@ -20,6 +21,8 @@ export default async function EntityPage({ params }: { params: { id: string } })
 
   const entityProjects = projects
     .filter((p) => p.entityId === entity.id)
+    .map((p) => (isOwner ? p : shapeProjectForViewer(p, false)))
+    .filter((p): p is Project => p !== null)
     .sort((a, b) => b.updatedAt - a.updatedAt);
 
   return (

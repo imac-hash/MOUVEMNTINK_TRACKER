@@ -1,11 +1,13 @@
 import Link from "next/link";
 import * as store from "@/lib/store";
 import { auth } from "@/auth";
+import { shapeProjectForViewer } from "@/lib/visibility";
 import {
   ENTITY_COLOR_HEX,
   PROJECT_TYPE_LABELS,
   TRIAGE_LABELS,
   TriageBucket,
+  Project,
 } from "@/lib/types";
 import { setTriageAction } from "@/lib/actions";
 
@@ -22,6 +24,7 @@ const BUCKET_ACCENT: Record<TriageBucket, string> = {
 
 export default async function DashboardPage() {
   const session = await auth();
+  const isOwner = store.isOwnerEmail(session?.user?.email);
   const allowed = await store.getAllowedEntityIds(session?.user?.email);
 
   const [allEntities, allProjects] = await Promise.all([
@@ -30,8 +33,13 @@ export default async function DashboardPage() {
   ]);
 
   const entities = allowed === "all" ? allEntities : allEntities.filter((e) => allowed.includes(e.id));
-  const projects =
+  const entityFiltered =
     allowed === "all" ? allProjects : allProjects.filter((p) => allowed.includes(p.entityId));
+  const projects = isOwner
+    ? entityFiltered
+    : entityFiltered
+        .map((p) => shapeProjectForViewer(p, false))
+        .filter((p): p is Project => p !== null);
 
   const entityById = Object.fromEntries(entities.map((e) => [e.id, e]));
   const live = projects.filter((p) => p.status !== "done" && p.status !== "archived");
