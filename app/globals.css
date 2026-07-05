@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html { color-scheme: light; }
+
+body {
+  background-color: #ffffff;
+}
+
+.card {
+  @apply bg-white border border-line rounded-sm;
+}
+
+.btn {
+  @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-sm text-sm font-medium
+    border border-line bg-white hover:bg-bone/60 hover:border-navy/40
+    transition-colors text-charcoal;
+}
+
+.btn-primary {
+  @apply btn bg-navy border-navy text-white hover:bg-navy/90;
+}
+
+.input {
+  @apply w-full bg-white border border-line rounded-sm px-3 py-2 text-sm text-charcoal
+    placeholder:text-charcoal/40 focus:outline-none focus:border-navy/60;
+}
+
+/* Structural role: Oswald, condensed, uppercase, small — section heads,
+   table headers, nav, banners. Never the headline font. */
+.label {
+  @apply text-xs uppercase tracking-wider text-charcoal/60 font-structural font-medium;
+}
+
+/* Hero role: DM Sans (web/Docs) — the one or two moments per screen that
+   should read as an actual headline. */
+.hero {
+  @apply font-display font-extrabold text-charcoal;
+}
+
+/* Rare-emphasis accent — oxblood is reserved for status/urgency signals
+   only, not general decoration. */
+.accent-oxblood {
+  color: #3F0813;
+}
