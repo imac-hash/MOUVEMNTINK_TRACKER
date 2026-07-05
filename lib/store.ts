@@ -56,8 +56,12 @@ export async function getEntities(): Promise<Entity[]> {
 }
 
 export async function getProjects(): Promise<Project[]> {
-  if (USE_KV) return kvGet<Project[]>("projects", []);
-  return readLocal().projects;
+  const projects = USE_KV
+    ? await kvGet<Project[]>("projects", [])
+    : readLocal().projects;
+  // Older stored projects predate the billingItems field — normalize so
+  // every read path can rely on it always being an array.
+  return projects.map((p) => ({ ...p, billingItems: p.billingItems || [] }));
 }
 
 export async function saveEntities(entities: Entity[]): Promise<void> {
