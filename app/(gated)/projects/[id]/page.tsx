@@ -20,6 +20,13 @@ import {
   setBillingItemVisibilityAction,
 } from "@/lib/actions";
 
+function formatLogDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes}m`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
 function formatAmount(cents: number, currency: string) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -91,6 +98,53 @@ export default async function ProjectPage({ params }: { params: { id: string } }
             </a>
           ))}
         </div>
+        {shaped.sessionLogs.length > 0 && (
+          <div className="card p-6 space-y-4">
+            <div className="flex items-baseline justify-between">
+              <h2 className="label">Work log</h2>
+              <span className="text-xs text-charcoal/50 font-structural">
+                {shaped.sessionLogs.length} {shaped.sessionLogs.length === 1 ? "session" : "sessions"}
+                {" · "}
+                {formatLogDuration(
+                  shaped.sessionLogs.reduce((sum, l) => sum + l.durationMin, 0)
+                )}
+              </span>
+            </div>
+            {[...shaped.sessionLogs]
+              .sort((a, b) => b.startedAt - a.startedAt)
+              .map((l) => (
+                <div key={l.id} className="border-b border-line pb-4 last:border-0 last:pb-0">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-xs text-charcoal/50 font-structural">
+                      {l.day}
+                      {l.phase && <span className="text-charcoal/40"> · {l.phase}</span>}
+                    </span>
+                    <span className="text-xs text-charcoal/50 font-structural whitespace-nowrap">
+                      {formatLogDuration(l.durationMin)}
+                      {l.billable === false && (
+                        <span className="text-charcoal/35"> · unbilled</span>
+                      )}
+                    </span>
+                  </div>
+                  <p className="text-sm text-charcoal mt-1 leading-snug">{l.summary}</p>
+                  {l.body && (
+                    <details className="group mt-2">
+                      <summary className="label cursor-pointer hover:text-navy transition-colors list-none">
+                        <span className="group-open:hidden">Show detail</span>
+                        <span className="hidden group-open:inline">Hide detail</span>
+                      </summary>
+                      <pre className="mt-2 whitespace-pre-wrap font-sans text-sm text-charcoal/80 leading-relaxed border-l-2 border-line pl-4">
+                        {l.body}
+                      </pre>
+                    </details>
+                  )}
+                </div>
+              ))}
+            <NextLink href={`/logs?project=${shaped.id}`} className="label hover:text-navy transition-colors inline-block">
+              Search this project&rsquo;s log &rarr;
+            </NextLink>
+          </div>
+        )}
         {shaped.billingItems.length > 0 && (
           <div className="card p-6 space-y-4">
             <h2 className="label">Billing</h2>
