@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid";
-import { BillingItem, BillingItemStatus, Entity, Link, Project, Task } from "./types";
+import { BillingItem, BillingItemStatus, Entity, Link, Project, SessionLog, Task } from "./types";
 import fs from "fs";
 import path from "path";
 
@@ -59,11 +59,12 @@ export async function getProjects(): Promise<Project[]> {
   const projects = USE_KV
     ? await kvGet<Project[]>("projects", [])
     : readLocal().projects;
-  // Older stored projects predate the billingItems/lineItems fields —
-  // normalize so every read path can rely on them always being arrays.
+  // Older stored projects predate the billingItems/lineItems and sessionLogs
+  // fields — normalize so every read path can rely on them always being arrays.
   return projects.map((p) => ({
     ...p,
     billingItems: (p.billingItems || []).map((b) => ({ ...b, lineItems: b.lineItems || [] })),
+    sessionLogs: p.sessionLogs || [],
   }));
 }
 
@@ -97,8 +98,8 @@ export async function deleteEntity(id: string) {
 }
 
 export async function createProject(
-  input: Omit<Project, "id" | "createdAt" | "updatedAt" | "tasks" | "tags" | "links" | "billingItems" | "collaborators"> &
-    Partial<Pick<Project, "tasks" | "tags" | "links" | "billingItems" | "collaborators">>
+  input: Omit<Project, "id" | "createdAt" | "updatedAt" | "tasks" | "tags" | "links" | "billingItems" | "sessionLogs" | "collaborators"> &
+    Partial<Pick<Project, "tasks" | "tags" | "links" | "billingItems" | "sessionLogs" | "collaborators">>
 ) {
   const projects = await getProjects();
   const now = Date.now();
@@ -107,6 +108,7 @@ export async function createProject(
     tags: [],
     links: [],
     billingItems: [],
+    sessionLogs: [],
     collaborators: [],
     ...input,
     id: nanoid(8),
@@ -376,4 +378,92 @@ export async function isAllowedEmail(email?: string | null): Promise<boolean> {
   if (!email) return false;
   const collaborators = await getCollaborators();
   return collaborators.some((c) => c.email.toLowerCase() === email.toLowerCase());
+}
+
+// --- Session logs (agent-written work records) ---
+
+export interface SessionLogInput {
+  id: string;
+  projectId: string;
+  day: string;
+  startedAt: number;
+  endedAt: number;
+  durationMin: number;
+  phase?: string;
+  summary: string;
+  body?: string;
+  tasksTouched?: string[];
+  filePath: string;
+  repo?: string;
+  sessionId?: string;
+  billable?: boolean;
+}
+
+export type SessionLogUpsertResult =
+  | { ok: true; created: boolean }
+  | { ok: false; reason: "project_not_found" };
+
+// Upsert a session log onto an EXISTING project, keyed by the caller-supplied
+// log id so a retried upload updates in place instead of duplicating.
+//
+// This deliberately never creates a project: an unknown projectId is an error
+// the caller must resolve, not an invitation to invent a project. Work that
+// doesn't fit an existing project belongs in a new `phase` on one that does.
+export async function upsertSessionLog(
+  input: SessionLogInput
+): Promise<SessionLogUpsertResult> {
+  const projects = await getProjects();
+  const idx = projects.findIndex((p) => p.id === input.projectId);
+  if (idx === -1) return { ok: false, reason: "project_not_found" };
+
+  const project = projects[idx];
+  const existing = (project.sessionLogs || []).find((l) => l.id === input.id);
+  const now = Date.now();
+
+  const log: SessionLog = {
+    id: input.id,
+    day: input.day,
+    startedAt: input.startedAt,
+    endedAt: input.endedAt,
+    durationMin: input.durationMin,
+    phase: input.phase,
+    summary: input.summary,
+    body: input.body,
+    tasksTouched: input.tasksTouched || [],
+    filePath: input.filePath,
+    repo: input.repo,
+    sessionId: input.sessionId,
+    billable: input.billable,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  };
+
+  const sessionLogs = existing
+    ? (project.sessionLogs || []).map((l) => (l.id === log.id ? log : l))
+    : [...(project.sessionLogs || []), log];
+
+  projects[idx] = { ...project, sessionLogs, updatedAt: now };
+  await saveProjects(projects);
+  return { ok: true, created: !existing };
+}
+
+export interface SessionLogWithProject extends SessionLog {
+  projectId: string;
+  projectTitle: string;
+  entityId: string;
+}
+
+// Flattened view across every project, newest first — backs the /logs page.
+export async function getAllSessionLogs(): Promise<SessionLogWithProject[]> {
+  const projects = await getProjects();
+  return projects
+    .flatMap((p) =>
+      (p.sessionLogs || []).map((l) => ({
+        ...l,
+        projectId: p.id,
+        projectTitle: p.title,
+        entityId: p.entityId,
+      }))
+    )
+    .sort((a, b) => b.startedAt - a.startedAt);
 }

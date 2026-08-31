@@ -24,6 +24,11 @@ export default async function GatedLayout({ children }: { children: React.ReactN
             entities
           </Link>
           {isOwner && (
+            <Link href="/logs" className="hover:text-navy transition-colors">
+              log
+            </Link>
+          )}
+          {isOwner && (
             <Link href="/collaborators" className="hover:text-navy transition-colors">
               collaborators
             </Link>

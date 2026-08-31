@@ -79,6 +79,31 @@ export const BILLING_STATUS_LABELS: Record<BillingItemStatus, string> = {
   uncollectible: "Uncollectible",
 };
 
+export interface SessionLog {
+  id: string;
+  // Calendar day the work happened, in Pacific time (YYYY-MM-DD). Stored as a
+  // string rather than derived from a timestamp so "search by day" is a plain
+  // string match and never drifts across a UTC boundary.
+  day: string;
+  startedAt: number;
+  endedAt: number;
+  durationMin: number;
+  // Groups many logs under one long-running effort so a project accumulates
+  // phases instead of spawning new projects for every stretch of work.
+  phase?: string;
+  summary: string;
+  body?: string;
+  tasksTouched: string[];
+  // Path to the durable markdown file on disk. That file is the source of
+  // truth; this record is a browsable copy of it.
+  filePath: string;
+  repo?: string;
+  sessionId?: string;
+  billable?: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface Project {
   id: string;
   entityId: string;
@@ -92,6 +117,10 @@ export interface Project {
   links: Link[];
   tasks: Task[];
   billingItems: BillingItem[];
+  // Internal work notes. Deliberately has no visibleToCollaborators flag
+  // anywhere in this type: session logs are owner-only, unconditionally,
+  // and lib/visibility.ts strips them on every non-owner path.
+  sessionLogs: SessionLog[];
   notes?: string;
   collaborators: string[];
   shareToken?: string;

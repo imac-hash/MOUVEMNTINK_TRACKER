@@ -21,11 +21,15 @@ export function shapeProjectForViewer(
 ): ShapedProject | null {
   if (isOwner) return project;
 
+  // Session logs are internal work notes (what broke, what was deferred, what
+  // it cost) and are owner-only unconditionally — there is no release flag and
+  // no gated case that exposes them. Both non-owner branches below strip them.
+  //
   // Billing items are money data and get a strictly stronger rule than
   // tasks/links: they require the project to be gated AND the item to be
   // explicitly released. There is no ungated-billing-open case, ever —
   // even on the pass-through path below, billing items are stripped.
-  if (!project.gated) return { ...project, billingItems: [] };
+  if (!project.gated) return { ...project, billingItems: [], sessionLogs: [] };
 
   const tasks = project.tasks.filter((t) => t.visibleToCollaborators);
   const links = project.links.filter((l) => l.visibleToCollaborators);
@@ -60,6 +64,7 @@ export function shapeProjectForViewer(
     links,
     tasks,
     billingItems,
+    sessionLogs: [],
     collaborators: [],
     createdAt: project.createdAt,
     updatedAt: project.updatedAt,
